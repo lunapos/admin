@@ -167,12 +167,16 @@ export default function CastSalesAllocator({ visitId, paymentId, subtotal, casts
   if (saved.length === 0 && !editing) {
     return (
       <div className="flex items-center justify-between">
-        <span className="text-[10px] text-[#3a3a5e]">キャスト売上の配分なし（本指名なし）</span>
+        <span className="text-[11px] text-[#3a3a5e]">
+          キャスト売上の配分なし
+          <span className="ml-1 text-[#2e2e50]">|</span>
+          <span className="ml-1">本指名がないため自動配分されていません</span>
+        </span>
         <button
           onClick={() => setEditing(true)}
-          className="text-[10px] text-[#9090bb] hover:text-[#d4b870] flex items-center gap-1"
+          className="text-[11px] text-[#9090bb] hover:text-[#d4b870] flex items-center gap-1"
         >
-          <Plus size={10} />配分を作る
+          <Plus size={11} />手動で配分する
         </button>
       </div>
     )
@@ -183,37 +187,50 @@ export default function CastSalesAllocator({ visitId, paymentId, subtotal, casts
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between">
-        <span className="text-[10px] text-[#9090bb] tracking-widest uppercase">
+        <span className="text-[11px] text-[#9090bb] tracking-widest uppercase">
           キャスト売上の配分
           {isAdjusted && (
-            <span className="ml-2 px-1.5 py-0.5 rounded text-[9px] text-[#d4b870] bg-[#d4b870]/10 border border-[#d4b870]/30">
-              調整済み
+            <span className="ml-2 px-1.5 py-0.5 rounded text-[10px] text-[#d4b870] bg-[#d4b870]/10 border border-[#d4b870]/30">
+              手動で調整済み
             </span>
           )}
         </span>
         {!editing && (
           <button
             onClick={() => setEditing(true)}
-            className="text-[10px] text-[#9090bb] hover:text-[#d4b870] flex items-center gap-1"
+            className="text-[11px] text-[#9090bb] hover:text-[#d4b870] flex items-center gap-1"
           >
-            <Pencil size={10} />配分を変更
+            <Pencil size={11} />配分を変更
           </button>
         )}
       </div>
 
+      {/* 何を分けているのかが分からないという声があったため明示する */}
+      <div className="flex justify-between text-[11px] text-[#3a3a5e] pb-1">
+        <span>配分するのは小計（サービス料・消費税を除いた金額）</span>
+        <span className="text-[#9090bb]">{formatYen(subtotal)}</span>
+      </div>
+
       {!editing ? (
         <div className="space-y-1">
-          {saved.map(cs => (
-            <div key={cs.id} className="flex justify-between text-[#9090bb]">
-              <span>{castMap.get(cs.cast_id)?.stage_name ?? '（退店キャスト）'}</span>
-              <span>
-                {formatYen(cs.amount)}
-                <span className="ml-2 text-[10px] text-[#3a3a5e]">
-                  {subtotal > 0 ? Math.round((cs.amount / subtotal) * 100) : 0}%
-                </span>
-              </span>
-            </div>
-          ))}
+          {saved.map(cs => {
+            const pct = subtotal > 0 ? Math.round((cs.amount / subtotal) * 100) : 0
+            return (
+              <div key={cs.id} className="space-y-1">
+                <div className="flex justify-between text-[12px] text-white">
+                  <span>{castMap.get(cs.cast_id)?.stage_name ?? '（退店キャスト）'}</span>
+                  <span>
+                    {formatYen(cs.amount)}
+                    <span className="ml-2 text-[11px] text-[#9090bb]">{pct}%</span>
+                  </span>
+                </div>
+                {/* 割合を目で見て分かるようにする */}
+                <div className="h-1 bg-[#2e2e50] rounded overflow-hidden">
+                  <div className="h-full bg-[#d4b870]" style={{ width: `${pct}%` }} />
+                </div>
+              </div>
+            )
+          })}
           {saved.some(cs => cs.note) && (
             <div className="text-[10px] text-[#3a3a5e] pt-1">
               理由: {saved.find(cs => cs.note)?.note}
@@ -222,9 +239,14 @@ export default function CastSalesAllocator({ visitId, paymentId, subtotal, casts
         </div>
       ) : (
         <div className="space-y-2">
+          <p className="text-[11px] text-[#3a3a5e]">
+            スライダーか数値で割合を決めると、残りは他のキャストへ自動で振り分けます。
+          </p>
+
           {rows.map((r, i) => (
-            <div key={r.castId} className="flex items-center gap-2">
-              <span className="flex-1 truncate text-[#9090bb]">
+            <div key={r.castId} className="space-y-1 pb-2">
+              <div className="flex items-center gap-2">
+              <span className="flex-1 truncate text-[12px] text-white">
                 {castMap.get(r.castId)?.stage_name ?? '（退店キャスト）'}
               </span>
               {/*
@@ -262,6 +284,16 @@ export default function CastSalesAllocator({ visitId, paymentId, subtotal, casts
               >
                 <X size={12} />
               </button>
+              </div>
+              {/* 数値入力より直感的に割合を決められるようにする */}
+              <input
+                type="range"
+                min={0}
+                max={100}
+                value={subtotal > 0 ? Math.round((r.amount / subtotal) * 100) : 0}
+                onChange={e => updatePercent(i, Number(e.target.value))}
+                className="w-full accent-[#d4b870]"
+              />
             </div>
           ))}
 
@@ -288,25 +320,30 @@ export default function CastSalesAllocator({ visitId, paymentId, subtotal, casts
             )}
           </div>
 
-          <div className="flex justify-between items-center border-t border-[#2e2e50] pt-2">
-            <span className="text-[#9090bb]">配分合計</span>
-            <span className={diff === 0 ? 'text-[#d4b870] font-bold' : 'text-red-400 font-bold'}>
-              {formatYen(allocated)}
-              {diff === 0 ? (
-                <span className="ml-2 text-[10px]">✓ 元の売上と一致</span>
-              ) : (
-                <span className="ml-2 text-[10px]">
-                  {diff > 0 ? `${formatYen(diff)} 不足` : `${formatYen(-diff)} 超過`}
-                </span>
-              )}
-            </span>
+          <div className="border-t border-[#2e2e50] pt-2 space-y-1">
+            <div className="flex justify-between items-center text-[12px]">
+              <span className="text-[#9090bb]">配分合計</span>
+              <span className={diff === 0 ? 'text-[#d4b870] font-bold' : 'text-red-400 font-bold'}>
+                {formatYen(allocated)} / {formatYen(subtotal)}
+              </span>
+            </div>
+            {/* 一致しないと保存できないので、あといくらかを具体的に出す */}
+            {diff === 0 ? (
+              <p className="text-[11px] text-[#d4b870]">小計と一致しています。保存できます。</p>
+            ) : (
+              <p className="text-[11px] text-red-400">
+                {diff > 0
+                  ? `あと ${formatYen(diff)} 割り当ててください（保存できません）`
+                  : `${formatYen(-diff)} 多く割り当てられています（保存できません）`}
+              </p>
+            )}
           </div>
 
           <input
             type="text"
             value={note}
             onChange={e => setNote(e.target.value)}
-            placeholder="調整理由（例: 途中でヘルプ交代のため）"
+            placeholder="調整理由（任意・例: 途中でヘルプ交代のため）"
             className="w-full bg-[#141430] border border-[#2e2e50] rounded px-2 py-1 text-white outline-none focus:border-[#d4b870]/50 placeholder:text-[#3a3a5e]"
           />
 
