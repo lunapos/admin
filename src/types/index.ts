@@ -63,6 +63,10 @@ export interface MenuItemRow {
   category: MenuCategory
   is_active: boolean
   sort_order: number
+  /** バック率（0〜1）。back_amount が設定されていればそちらが優先される */
+  back_rate: number | null
+  /** 1点あたりのバック額（円）。設定されていれば back_rate より優先 */
+  back_amount: number | null
   created_at: string
   updated_at: string
 }
@@ -133,6 +137,26 @@ export interface CastSaleRow {
   visit_id: string
   payment_id: string | null
   cast_id: string
+  amount: number
+  is_adjusted: boolean
+  adjusted_by: string | null
+  adjusted_at: string | null
+  note: string | null
+  created_at: string
+  updated_at: string
+}
+
+// キャストバック（店がキャストに支払う歩合）。
+// 会計時にメニューのバック設定から自動生成され、本指名のキャストに按分される。
+// cast_sales（誰の売上か）とは別で、合計が subtotal と一致する制約はない。
+export interface CastBackRow {
+  id: string
+  tenant_id: string
+  visit_id: string
+  payment_id: string | null
+  cast_id: string
+  order_item_id: string | null
+  menu_item_name: string
   amount: number
   is_adjusted: boolean
   adjusted_by: string | null

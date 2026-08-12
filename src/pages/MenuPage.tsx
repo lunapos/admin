@@ -15,7 +15,10 @@ const CATEGORIES: { id: MenuCategory; label: string }[] = [
   { id: 'other', label: 'その他' },
 ]
 
-const EMPTY_FORM = { name: '', price: '', category: 'drink' as MenuCategory, sort_order: '0' }
+const EMPTY_FORM = {
+  name: '', price: '', category: 'drink' as MenuCategory, sort_order: '0',
+  back_rate: '', back_amount: '',
+}
 
 export default function MenuPage() {
   const [items, setItems] = useState<MenuItemRow[]>([])
@@ -38,7 +41,7 @@ export default function MenuPage() {
     try {
       const tid = requireTenantId()
       const { data, error } = await supabase.from('menu_items')
-        .select('id, tenant_id, name, price, category, is_active, sort_order, created_at, updated_at')
+        .select('id, tenant_id, name, price, category, is_active, sort_order, back_rate, back_amount, created_at, updated_at')
         .eq('tenant_id', tid)
         .order('sort_order', { ascending: true })
       if (error) throw new Error(error.message)
@@ -62,6 +65,9 @@ export default function MenuPage() {
   async function handleSave() {
     const price = parseInt(form.price)
     if (!form.name.trim() || isNaN(price) || price < 0) return
+    // バックは率・絶対額のどちらか。空欄なら未設定（バックなし）
+    const backAmountValue = form.back_amount.trim() ? Math.max(0, parseInt(form.back_amount) || 0) : null
+    const backRateValue = form.back_rate.trim() ? Math.min(1, Math.max(0, (parseFloat(form.back_rate) || 0) / 100)) : null
     setSaving(true)
     try {
       const tid = requireTenantId()
@@ -71,6 +77,8 @@ export default function MenuPage() {
           price,
           category: form.category,
           sort_order: parseInt(form.sort_order) || 0,
+          back_rate: backRateValue,
+          back_amount: backAmountValue,
           updated_at: new Date().toISOString(),
         }).eq('id', editingId).eq('tenant_id', tid)
         if (error) throw new Error(error.message)
@@ -82,6 +90,8 @@ export default function MenuPage() {
           price,
           category: form.category,
           sort_order: parseInt(form.sort_order) || 0,
+          back_rate: backRateValue,
+          back_amount: backAmountValue,
           is_active: true,
         })
         if (error) throw new Error(error.message)
@@ -119,6 +129,8 @@ export default function MenuPage() {
       price: String(item.price),
       category: item.category,
       sort_order: String(item.sort_order),
+      back_rate: item.back_rate != null ? String(Math.round(item.back_rate * 100)) : '',
+      back_amount: item.back_amount != null ? String(item.back_amount) : '',
     })
     setShowForm(true)
   }
@@ -217,6 +229,48 @@ export default function MenuPage() {
               className="bg-[#0f0f28] border border-[#2e2e50] rounded-xl px-4 py-3 text-white placeholder-[#3a3a5e] outline-none focus:border-[#d4b870]/50"
             />
           </div>
+
+          {/* バック設定 */}
+          <div className="pt-4 border-t border-[#2e2e50]">
+            <label className="text-xs text-[#9090bb] tracking-widest uppercase block mb-2">キャストバック</label>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="text-xs text-[#9090bb] block mb-1">バック率（%）</label>
+                <input
+                  type="number"
+                  placeholder="例: 20"
+                  value={form.back_rate}
+                  onChange={e => setForm(f => ({ ...f, back_rate: e.target.value }))}
+                  disabled={!!form.back_amount.trim()}
+                  className="w-full bg-[#0f0f28] border border-[#2e2e50] rounded-xl px-4 py-3 text-white placeholder-[#3a3a5e] outline-none focus:border-[#d4b870]/50 disabled:opacity-30"
+                  min="0" max="100"
+                />
+              </div>
+              <div>
+                <label className="text-xs text-[#9090bb] block mb-1">バック額（円 / 1点あたり）</label>
+                <input
+                  type="number"
+                  placeholder="例: 3000"
+                  value={form.back_amount}
+                  onChange={e => setForm(f => ({ ...f, back_amount: e.target.value }))}
+                  className="w-full bg-[#0f0f28] border border-[#2e2e50] rounded-xl px-4 py-3 text-white placeholder-[#3a3a5e] outline-none focus:border-[#d4b870]/50"
+                  min="0"
+                />
+              </div>
+            </div>
+            <p className="text-xs text-[#9090bb] mt-2">
+              バックは本指名のキャストにのみ付きます。本指名が複数いる卓では指名数で割り、伝票ごとに手動調整もできます。
+              {form.back_amount.trim()
+                ? '　金額が入力されているため、率ではなく金額を使います。'
+                : '　両方空欄ならバックは付きません。'}
+            </p>
+            {form.back_rate.trim() && !form.back_amount.trim() && form.price && (
+              <p className="text-xs text-[#d4b870] mt-1">
+                1点あたり約 ¥{Math.round((parseInt(form.price) || 0) * (parseFloat(form.back_rate) || 0) / 100).toLocaleString()}
+              </p>
+            )}
+          </div>
+
           <button
             onClick={handleSave}
             disabled={saving || !form.name.trim() || !form.price}
@@ -247,6 +301,12 @@ export default function MenuPage() {
                   <div className={`text-sm font-medium ${item.is_active ? 'text-white' : 'text-[#9090bb] line-through'}`}>{item.name}</div>
                   <div className="text-xs text-[#9090bb] mt-0.5">
                     {CATEGORIES.find(c => c.id === item.category)?.label} / 順序: {item.sort_order}
+                    {item.back_amount != null && (
+                      <span className="text-[#d4b870]">　バック ¥{item.back_amount.toLocaleString()}</span>
+                    )}
+                    {item.back_amount == null && item.back_rate != null && (
+                      <span className="text-[#d4b870]">　バック {Math.round(item.back_rate * 100)}%</span>
+                    )}
                   </div>
                 </div>
                 <div className="text-[#d4b870] font-bold">¥{item.price.toLocaleString()}</div>

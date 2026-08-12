@@ -12,6 +12,7 @@ import {
 import type { SlipFilters, SlipSortKey, SortDir } from '../lib/salesSlips'
 import { exportSalesSlipsCSV } from '../lib/csvExport'
 import CastSalesAllocator from '../components/CastSalesAllocator'
+import CastBackEditor from '../components/CastBackEditor'
 import type { PaymentRow, PaymentMethod, FloorTableRow, CastRow } from '../types'
 
 interface PaymentItemRow {
@@ -500,6 +501,15 @@ export default function SalesSlipsPage() {
                               visitId={p.visit_id}
                               paymentId={p.id}
                               subtotal={p.subtotal}
+                              casts={casts}
+                            />
+                          </div>
+
+                          {/* キャストバック（店の支出。売上配分とは別勘定） */}
+                          <div className="border-t border-[#2e2e50] mt-3 pt-3">
+                            <CastBackEditor
+                              visitId={p.visit_id}
+                              paymentId={p.id}
                               casts={casts}
                             />
                           </div>
