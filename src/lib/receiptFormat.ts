@@ -154,7 +154,8 @@ export function buildReceiptText(
   lines.push(leftRight('お支払い', payment.paymentMethodLabel))
   lines.push('')
   lines.push(center('ご来店ありがとうございました'))
-  lines.push(center('Luna Pos'))
+  // レシートの締めは店名にする（お客様が受け取るものなのでPOSの製品名は出さない）
+  lines.push(center(store.name))
 
   return lines.join('\n')
 }
