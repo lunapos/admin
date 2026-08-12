@@ -2,11 +2,11 @@
 //
 // POSで実際に印字されるものと同じ体裁にしてあり、
 // 「あの日のレシートをもう一度見たい／出したい」に応えるためのもの。
+// 伝票を開けば常に見えるようにしてある（都度開く操作を挟まない）。
 // 印刷はブラウザの印刷機能を使う（レシート幅に合わせたスタイルを当てる）。
 
-import { useState } from 'react'
-import { Receipt, Printer, X } from 'lucide-react'
-import { buildReceiptText } from '../lib/receiptFormat'
+import { Printer } from 'lucide-react'
+import { buildReceiptText, RECEIPT_LINE_WIDTH } from '../lib/receiptFormat'
 import type { ReceiptStore, ReceiptPayment, ReceiptItem } from '../lib/receiptFormat'
 
 interface Props {
@@ -16,8 +16,6 @@ interface Props {
 }
 
 export default function ReceiptPreview({ store, payment, items }: Props) {
-  const [open, setOpen] = useState(false)
-
   // 店舗情報が未取得でもレシートは出せるようにする（店名だけ既定値）
   const effectiveStore: ReceiptStore = store ?? {
     name: 'Luna POS',
@@ -50,40 +48,28 @@ export default function ReceiptPreview({ store, payment, items }: Props) {
     w.document.close()
   }
 
-  if (!open) {
-    return (
-      <button
-        onClick={() => setOpen(true)}
-        className="text-[10px] text-[#d4b870] hover:underline flex items-center gap-1"
-      >
-        <Receipt size={10} /> レシート表示
-      </button>
-    )
-  }
-
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between">
-        <span className="text-[10px] text-[#9090bb]">レシート</span>
-        <div className="flex items-center gap-3">
-          <button
-            onClick={handlePrint}
-            className="text-[10px] text-[#d4b870] hover:underline flex items-center gap-1"
-          >
-            <Printer size={10} /> 印刷
-          </button>
-          <button
-            onClick={() => setOpen(false)}
-            className="text-[10px] text-[#9090bb] hover:underline flex items-center gap-1"
-          >
-            <X size={10} /> 閉じる
-          </button>
-        </div>
+        <span className="text-[10px] text-[#9090bb] tracking-widest uppercase">レシート</span>
+        <button
+          onClick={handlePrint}
+          className="text-[10px] text-[#9090bb] hover:text-[#d4b870] flex items-center gap-1"
+        >
+          <Printer size={10} /> 印刷
+        </button>
       </div>
 
-      {/* 実物に近づけるため白背景・等幅で出す */}
-      <div className="bg-white rounded-lg p-4 overflow-x-auto">
-        <pre className="text-black text-[10px] leading-[1.45] font-mono whitespace-pre">
+      {/*
+        実物に近づけるため白背景・等幅で出す。
+        幅はレシート桁数(48文字)に合わせ、横に間延びさせない。
+        狭い画面では ch 幅が入りきらないので max-w-full で折らずに縮める。
+      */}
+      <div className="bg-white rounded-lg p-3 overflow-x-auto inline-block max-w-full">
+        <pre
+          className="text-black text-[10px] leading-[1.45] font-mono whitespace-pre"
+          style={{ width: `${RECEIPT_LINE_WIDTH}ch` }}
+        >
           {text}
         </pre>
       </div>
