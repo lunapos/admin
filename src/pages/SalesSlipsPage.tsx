@@ -13,6 +13,8 @@ import type { SlipFilters, SlipSortKey, SortDir } from '../lib/salesSlips'
 import { exportSalesSlipsCSV } from '../lib/csvExport'
 import CastSalesAllocator from '../components/CastSalesAllocator'
 import CastBackEditor from '../components/CastBackEditor'
+import ReceiptPreview from '../components/ReceiptPreview'
+import type { ReceiptStore } from '../lib/receiptFormat'
 import type { PaymentRow, PaymentMethod, FloorTableRow, CastRow } from '../types'
 
 interface PaymentItemRow {
@@ -64,6 +66,8 @@ export default function SalesSlipsPage() {
   const [items, setItems] = useState<PaymentItemRow[]>([])
   const [tables, setTables] = useState<FloorTableRow[]>([])
   const [casts, setCasts] = useState<CastRow[]>([])
+  // レシートの発行者欄に使う。未設定なら省略して表示する
+  const [store, setStore] = useState<ReceiptStore | null>(null)
   const [loading, setLoading] = useState(true)
   const [fetchError, setFetchError] = useState<string | null>(null)
 
@@ -84,7 +88,7 @@ export default function SalesSlipsPage() {
         const tid = requireTenantId()
         const { rangeStart, rangeEnd } = rangeToTimestamps(startDate, endDate)
 
-        const [paymentsRes, tablesRes, castsRes] = await Promise.all([
+        const [paymentsRes, tablesRes, castsRes, storeRes] = await Promise.all([
           supabase.from('payments')
             .select('id, tenant_id, visit_id, table_id, customer_name, subtotal, expense_total, nomination_fee, service_fee, tax, discount, total, payment_method, paid_at, created_at, updated_at')
             .eq('tenant_id', tid)
@@ -98,6 +102,10 @@ export default function SalesSlipsPage() {
             .select('id, tenant_id, stage_name, real_name, photo_url, drop_off_location, is_active, created_at, updated_at')
             .eq('tenant_id', tid)
             .eq('is_active', true),
+          supabase.from('stores')
+            .select('name, address, phone, invoice_registration_number, tax_rate')
+            .eq('id', tid)
+            .single(),
         ])
 
         if (paymentsRes.error) throw paymentsRes.error
@@ -106,6 +114,19 @@ export default function SalesSlipsPage() {
         setPayments(fetched)
         setTables((tablesRes.data || []) as FloorTableRow[])
         setCasts((castsRes.data || []) as CastRow[])
+        if (storeRes.data) {
+          const st = storeRes.data as {
+            name: string; address: string | null; phone: string | null
+            invoice_registration_number: string | null; tax_rate: number
+          }
+          setStore({
+            name: st.name,
+            address: st.address,
+            phone: st.phone,
+            invoiceRegistrationNumber: st.invoice_registration_number,
+            taxRate: st.tax_rate ?? 0.1,
+          })
+        }
         setExpandedId(null)
 
         if (fetched.length > 0) {
@@ -493,6 +514,32 @@ export default function SalesSlipsPage() {
                           <div className="border-t border-[#2e2e50] my-1" />
                           <div className="flex justify-between text-white font-bold">
                             <span>合計</span><span className="text-[#d4b870]">{formatYen(p.total)}</span>
+                          </div>
+
+                          {/* レシート表示（POSで印字されるものと同じ体裁） */}
+                          <div className="border-t border-[#2e2e50] mt-3 pt-3">
+                            <ReceiptPreview
+                              store={store}
+                              payment={{
+                                paidAt: p.paid_at,
+                                tableName: tableNameMap.get(p.table_id) || '',
+                                customerName: p.customer_name,
+                                subtotal: p.subtotal,
+                                nominationFee: p.nomination_fee,
+                                expenseTotal: p.expense_total,
+                                serviceFee: p.service_fee,
+                                tax: p.tax,
+                                discount: p.discount,
+                                total: p.total,
+                                paymentMethodLabel: METHOD_LABELS[p.payment_method],
+                              }}
+                              items={slipItems.map(i => ({
+                                menuItemName: i.menu_item_name,
+                                price: i.price,
+                                quantity: i.quantity,
+                                isExpense: i.is_expense,
+                              }))}
+                            />
                           </div>
 
                           {/* キャスト売上の配分（会計は変えずに分配だけ調整する） */}
